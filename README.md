@@ -104,7 +104,7 @@ team7-custom-env/
 
 ## 🧑‍💻 Authors
 
-**Team 7 — CS271: Reinforcement Learning (San José State University)**
+**Team 7 — CS271: Reinforcement Learning (San José State University)**   
 Aditya Patel  
 Karan Jain  
 Shareen Rodrigues      
