@@ -10,6 +10,8 @@ from highway_env.road.road import Road, RoadNetwork
 from highway_env.vehicle.kinematics import Vehicle
 from highway_env.vehicle.controller import ControlledVehicle
 
+from custom_env.vehicle import GhostVehicle
+
 
 Observation = np.ndarray
 
@@ -83,7 +85,7 @@ class MyEnv(HighwayEnv):
 
         self.controlled_vehicles = []
         for others in other_per_controlled:
-            #ghost_vehicle = Vehicle.create_from() # Will use this method to create ghost vehicle
+            
 
             # Create controlled Vehicle
             vehicle = Vehicle.create_random(
@@ -97,7 +99,8 @@ class MyEnv(HighwayEnv):
             )
             self.controlled_vehicles.append(vehicle)
             self.road.vehicles.append(vehicle)
-            # self.road.vehicles.append(ghost_vehicle) 
+            ghost_vehicle = GhostVehicle(self.road, vehicle.position, target_vehicle = vehicle) # Will use this method to create ghost vehicle
+            self.road.vehicles.append(ghost_vehicle) 
 
             for _ in range(others):
                 vehicle = other_vehicles_type.create_random(
