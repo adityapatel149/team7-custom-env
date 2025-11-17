@@ -9,6 +9,9 @@ from highway_env.envs.common.abstract import AbstractEnv
 from highway_env.road.road import Road, RoadNetwork
 from highway_env.vehicle.kinematics import Vehicle
 from highway_env.vehicle.controller import ControlledVehicle
+import highway_env.vehicle.behavior
+from custom_env.vehicle.SuddenBrakingVehicle import SuddenBrakingVehicle
+highway_env.vehicle.behavior.SuddenBrakingVehicle = SuddenBrakingVehicle
 
 from custom_env.vehicle import GhostVehicle
 
@@ -37,23 +40,26 @@ class MyEnv(HighwayEnv):
                 "action":{
                     "type" : "DiscreteMetaAction",
                 },
-                "lanes_count": 8,
-                "vehicles_count": 50,
+                "lanes_count": 4,
+                "vehicles_count": 75,
                 "controlled_vehicles": 1,
                 "initial_lane_id": None,
                 "duration": 40, #[s]
                 "ego_spacing": 2,
-                "vehicles_density": 1,
+                "vehicles_density": 3,
                 "collision_reward": -1, # The reward received when colliding with a vehicle.
                 "right_lane_reward": 0.1, # The reward received when driving on the right-most lanes, linearly mapped to
                 # zero for other lanes.
                 "lane_change_reward": 0, # The reward received at each lane change action.
                 "high_speed_reward": 0.4, # The reward received when driving at full speed, linearly mapped to zero for
                 # lower speeds according to config["reward_speed_range"].
-                "speed_limit": 30,
+                "speed_limit": 50,
                 "reward_speed_range": [20,30],
                 "normalize_reward": True,
                 "offroad_terminal": False,
+                "other_vehicles_type": "highway_env.vehicle.behavior.SuddenBrakingVehicle",
+                #"other_vehicles_type": "custom_env.vehicle.SuddenBrakingVehicle"
+
             }
         )
         return config
@@ -99,12 +105,14 @@ class MyEnv(HighwayEnv):
             )
             self.controlled_vehicles.append(vehicle)
             self.road.vehicles.append(vehicle)
+
+            #Create Ghost vehicle
             ghost_vehicle = GhostVehicle(self.road, vehicle.position, target_vehicle = vehicle) # Will use this method to create ghost vehicle
             self.road.vehicles.append(ghost_vehicle) 
 
             for _ in range(others):
                 vehicle = other_vehicles_type.create_random(
-                        self.road, spacing=1 / self.config["vehicles_density"]
+                        self.road, spacing=2 / self.config["vehicles_density"]
                 )
                 vehicle.randomize_behavior()
                 self.road.vehicles.append(vehicle)
