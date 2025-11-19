@@ -1,33 +1,26 @@
+import numpy as np
+
 from highway_env.envs import HighwayEnv
 from highway_env.envs.common.action import DiscreteMetaAction
 from highway_env.envs.highway_env import Observation
-import numpy as np
-
 from highway_env import utils, vehicle
 from highway_env.envs.common.abstract import AbstractEnv
-# from highway_env.envs import HighwayEnv
 from highway_env.road.road import Road, RoadNetwork
 from highway_env.vehicle.kinematics import Vehicle
 from highway_env.vehicle.controller import ControlledVehicle
 import highway_env.vehicle.behavior
+
 from custom_env.vehicle.SuddenBrakingVehicle import SuddenBrakingVehicle
 highway_env.vehicle.behavior.SuddenBrakingVehicle = SuddenBrakingVehicle
-
-from custom_env.vehicle import GhostVehicle
-
-from custom_env.vehicle.Pothole import Pothole
-
+from custom_env.vehicle import GhostVehicle, CustomVehicle
+from custom_env.objects.Pothole import Pothole
 
 Observation = np.ndarray
 
-
 class MyEnv(HighwayEnv): 
-# class MyEnv(AbstractEnv): # When defining custom functions
     """
     Team 7 custom environment derived from highway-env.
-    Currently uses LIDAR observation type and default highway-env behaviour.
-
-    Copied Highway_Env code as is.
+    Environment includes potholes, sudden braking vehicles and ghost lidar observtaions.
     
     """
 
@@ -37,13 +30,15 @@ class MyEnv(HighwayEnv):
         config.update({
                 "observation": {
                     "type": "LidarObservation",
-                     "cells": 16
+                     "cells": 36,
+                     "maximum_range": 100.0,
                 },
                 "action":{
                     "type" : "DiscreteMetaAction",
+                    "vehicle_class": "custom_env.vehicle.customvehicle.CustomVehicle",
                 },
-                "lanes_count": 4,
-                "vehicles_count": 75,
+                "lanes_count": 8,
+                "vehicles_count": 40,
                 "controlled_vehicles": 1,
                 "initial_lane_id": None,
                 "duration": 40, #[s]
@@ -56,25 +51,18 @@ class MyEnv(HighwayEnv):
                 "high_speed_reward": 0.4, # The reward received when driving at full speed, linearly mapped to zero for
                 # lower speeds according to config["reward_speed_range"].
                 "speed_limit": 50,
-                "reward_speed_range": [20,30],
+                "reward_speed_range": [25,50],
                 "normalize_reward": True,
                 "offroad_terminal": False,
                 "other_vehicles_type": "highway_env.vehicle.behavior.SuddenBrakingVehicle",
                 #"other_vehicles_type": "custom_env.vehicle.SuddenBrakingVehicle"
+                "anomaly_interval": 3, # Exhibit GhostVehicle anomalies every N agent steps. Note: Every N agent steps, NOT simulation steps.
                 "potholes": {
-    "enabled": True,
-    "count": 8,
-    "placement_mode": "lane_edge_artifacts",  # "random" | "clusters" | "lane_edge_artifacts"
-    "spawn_ahead_min": 20.0,
-    "spawn_ahead_max": 160.0,
-
-    "radius_m": 1.2,
-    "decel_mps": 5.0,
-    "cooldown_steps": 10,
-    "apply_to": "ego",           # or "all"
-    "visible_in_lidar": True     # add to road.vehicles (Obstacle is a Vehicle subclass)
-}
-
+                    "enabled": True,
+                    "count": 20,
+                    "spawn_ahead_min": 20.0,
+                    "spawn_ahead_max": 1000.0,
+                }
             }
         )
         return config
@@ -82,6 +70,7 @@ class MyEnv(HighwayEnv):
     def _reset(self) -> None:
         self._make_road()
         self._make_vehicles()
+        self._make_potholes()
 
     def _make_road(self) -> None:
         """Create a road composed of striaght adjacent lines"""
@@ -93,7 +82,7 @@ class MyEnv(HighwayEnv):
             np_random = self.np_random,
             record_history = self.config["show_trajectories"],
         )
-        
+
     def _make_vehicles(self) -> None:
         """Create some new rnadom vehicles of a given type, and add them on the road"""
         other_vehicles_type = utils.class_from_path(
@@ -105,25 +94,22 @@ class MyEnv(HighwayEnv):
         )
 
         self.controlled_vehicles = []
-        for others in other_per_controlled:
-            
+        for others in other_per_controlled:            
 
             # Create controlled Vehicle
-            vehicle = Vehicle.create_random(
+            vehicle = CustomVehicle.create_random(
                 self.road,
                 speed=25.0,
                 lane_id=self.config["initial_lane_id"],
                 spacing=self.config["ego_spacing"],
             )
-            vehicle = self.action_type.vehicle_class(
-                self.road, vehicle.position, vehicle.heading, vehicle.speed    
-            )
             self.controlled_vehicles.append(vehicle)
             self.road.vehicles.append(vehicle)
 
-            #Create Ghost vehicle
-            ghost_vehicle = GhostVehicle(self.road, vehicle.position, target_vehicle = vehicle) # Will use this method to create ghost vehicle
-            self.road.vehicles.append(ghost_vehicle) 
+            # Create Ghost Vehicle
+            anomaly_interval = self.config["anomaly_interval"] * (self.config["simulation_frequency"] // self.config["policy_frequency"])
+            ghost_vehicle = GhostVehicle.create_random(self.road, target_vehicle = vehicle, anomaly_interval = anomaly_interval) # Will use this method to create ghost vehicle
+            self.road.vehicles.append(ghost_vehicle)
 
             for _ in range(others):
                 vehicle = other_vehicles_type.create_random(
@@ -131,48 +117,31 @@ class MyEnv(HighwayEnv):
                 )
                 vehicle.randomize_behavior()
                 self.road.vehicles.append(vehicle)
-            # Add Potholes randomly on the road
-            # Spawn potholes according to config (Pothole are Obstacle subclasses)
+  
+    def _make_potholes(self) -> None:
+        """Create random potholes on random lanes."""
         p_conf = self.config.get("potholes", {})
-        if p_conf.get("enabled", False):
-            count = int(p_conf.get("count", 0))
-            if count > 0 and len(self.controlled_vehicles) > 0:
-                ego = self.controlled_vehicles[0]
-                for _ in range(count):
-                    # Simple placement: pick a distance ahead of the ego and place in ego's heading
-                    dist = float(self.np_random.uniform(
-                        p_conf.get("spawn_ahead_min", 20.0),
-                        p_conf.get("spawn_ahead_max", 160.0),
-                    ))
-                    pos = ego.position + dist * np.array([np.cos(ego.heading), np.sin(ego.heading)])
-                    pothole = Pothole(
-                        self.road,
-                        pos,
-                        ego.heading,
-                        radius_m=p_conf.get("radius_m", 1.2),
-                        decel_mps=p_conf.get("decel_mps", 5.0),
-                        cooldown_steps=p_conf.get("cooldown_steps", 10),
-                        visible_in_lidar=p_conf.get("visible_in_lidar", True),
-                        apply_to=p_conf.get("apply_to", "ego"),
-                    )
-                    self.road.objects.append(pothole)
+        if not p_conf.get("enabled", False):
+            return
+
+        count = int(p_conf.get("count", 0))
+        if count <= 0:
+            return
+
+        for _ in range(count):
+            pothole = Pothole.create_random(
+                self.road,
+                x_min=p_conf.get("spawn_ahead_min", 20.0),
+                x_max=p_conf.get("spawn_ahead_max", 160.0),
+            )
+            self.road.objects.append(pothole)
+
     def _reward(self, action):
         """Use default reward for now."""
         return super()._reward(action)
 
 
-    def _is_terminal(self):
-        """Use default termination condition."""
-        # check if ego vehicle has collided with pothole - if so, not terminal
-        # ego = self.controlled_vehicles[0]
-        # for v in self.road.vehicles:
-        #     if isinstance(v, Pothole):
-        #         #if ego.is_colliding(v):
-        #         return False        
-        return super()._is_terminal() 
+    def _is_terminated(self):
+        """Use default termination condition."""        
+        return super()._is_terminated() 
     
-    
-    # def _is_terminal(self):
-    #     """Use default termination condition."""
-    #     return super()._is_terminal() 
-            

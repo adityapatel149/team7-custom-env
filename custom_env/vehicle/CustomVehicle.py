@@ -1,26 +1,14 @@
-from highway_env.vehicle.behavior import IDMVehicle
-import numpy as np
-
+from highway_env.vehicle.kinematics import Vehicle
+from highway_env.vehicle.controller import MDPVehicle
 
 from highway_env.vehicle.objects import RoadObject, Obstacle
 from custom_env.objects import Pothole
 
-#Custom class for Sudden Braking Vehicle
-class SuddenBrakingVehicle(IDMVehicle):
-    COMFORT_ACC_MAX = 45
-    COMFORT_ACC_MIN = -150
+class CustomVehicle(MDPVehicle):
+    def __init__(self, road, position, heading=0, speed=0):
+        super().__init__(road, position, heading, speed)
 
-    def act(self, action= None):
-        if np.random.rand() < 0.0085:
-            self.color = (255,0, 0)
-            self.target_speed = -200 #Sudden stop
-        if self.speed < 5:
-            self.target_speed = 45 #Normal behavior
-            self.color = (0,0,255)
-           
-        super().act(action)
-
-
+    
     def handle_collisions(self, other: RoadObject, dt: float = 0) -> None:
         """
         Check for collision with another vehicle.
