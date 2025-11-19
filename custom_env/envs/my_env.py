@@ -15,7 +15,7 @@ highway_env.vehicle.behavior.SuddenBrakingVehicle = SuddenBrakingVehicle
 from custom_env.vehicle import GhostVehicle, CustomVehicle
 from custom_env.objects.Pothole import Pothole
 
-Observation = np.ndarray
+# Observation = np.ndarray
 
 class MyEnv(HighwayEnv): 
     """
@@ -135,6 +135,8 @@ class MyEnv(HighwayEnv):
                 x_max=p_conf.get("spawn_ahead_max", 160.0),
             )
             self.road.objects.append(pothole)
+
+            
 
     def _reward(self, action):
         """Use default reward for now."""
