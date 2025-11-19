@@ -7,6 +7,8 @@ from highway_env.utils import Vector
 
 import numpy as np
 
+from custom_env.vehicle.CustomVehicle import CustomVehicle
+
 class GhostVehicle(Vehicle):
     """
     A ghost vehicle near the target vehicle
@@ -17,10 +19,10 @@ class GhostVehicle(Vehicle):
     DEFAULT_INITIAL_DEGREE = [0, 180]
     """ Range for random initial position around target vehicle [degree] """
     DEFAULT_INITIAL_DISTANCE = [2, 3]
-    """ Range for random initial distance from target vehicle [ m or units] """
-    MAX_SPEED = 100
+    """ Range for random initial distance from target vehicle [units]. 1 unit = 1 car length and 1 car width """
+    MAX_SPEED = 50
     """ Maximum apparent speed of the ghost vehicle [m/s] """
-    MIN_SPEED = -100
+    MIN_SPEED = -50
     """ Minimum apparent speed of the ghost vehicle [m/s] """
     ANOMALY_TYPES = ["TELEPORT", "FLICKER", "SPEED"]
     """ Types of anomalies exhibited by ghost vehicle """
@@ -28,7 +30,7 @@ class GhostVehicle(Vehicle):
     """ RGBA values for color of ghost vehicle"""
 
 
-    def __init__(self, road, target_vehicle: Vehicle, anomaly_interval = 45, heading = 0, speed = 0 , degree = 65.0, distance = 2):
+    def __init__(self, road, target_vehicle: CustomVehicle, anomaly_interval = 45, heading = 0, speed = 0 , degree = 65.0, distance = 2):
         
         # Vehicle around which ghost vehicle will appear
         self.target_vehicle = target_vehicle         
@@ -47,7 +49,6 @@ class GhostVehicle(Vehicle):
         self.collidable = False # Disable collision with other collidables
         self.solid = True # For Lidar Observation 
         self.color = GhostVehicle.COLOR
-
 
         self.step_counter = 0
 
