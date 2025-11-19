@@ -16,7 +16,7 @@ highway_env.vehicle.behavior.SuddenBrakingVehicle = SuddenBrakingVehicle
 from custom_env.vehicle import GhostVehicle
 
 
-Observation = np.ndarray
+# Observation = np.ndarray
 
 
 class MyEnv(HighwayEnv): 
@@ -35,7 +35,8 @@ class MyEnv(HighwayEnv):
         config.update({
                 "observation": {
                     "type": "LidarObservation",
-                     "cells": 16
+                     "cells": 20,
+                     "maximum_range": 100,
                 },
                 "action":{
                     "type" : "DiscreteMetaAction",
@@ -60,6 +61,8 @@ class MyEnv(HighwayEnv):
                 "other_vehicles_type": "highway_env.vehicle.behavior.SuddenBrakingVehicle",
                 #"other_vehicles_type": "custom_env.vehicle.SuddenBrakingVehicle"
 
+                "anomaly_interval": 3, # Exhibit GhostVehicle anomalies every N agent steps. Note: Every N agent steps, NOT simulation steps.
+                
             }
         )
         return config
@@ -90,8 +93,7 @@ class MyEnv(HighwayEnv):
         )
 
         self.controlled_vehicles = []
-        for others in other_per_controlled:
-            
+        for others in other_per_controlled:            
 
             # Create controlled Vehicle
             vehicle = Vehicle.create_random(
@@ -106,9 +108,10 @@ class MyEnv(HighwayEnv):
             self.controlled_vehicles.append(vehicle)
             self.road.vehicles.append(vehicle)
 
-            #Create Ghost vehicle
-            ghost_vehicle = GhostVehicle(self.road, vehicle.position, target_vehicle = vehicle) # Will use this method to create ghost vehicle
-            self.road.vehicles.append(ghost_vehicle) 
+            anomaly_interval = self.config["anomaly_interval"] * (self.config["simulation_frequency"] // self.config["policy_frequency"])
+            # ghost_vehicle = GhostVehicle(self.road, target_vehicle = vehicle, anomaly_interval = anomaly_interval) # Will use this method to create ghost vehicle
+            ghost_vehicle = GhostVehicle.create_random(self.road, target_vehicle = vehicle, anomaly_interval = anomaly_interval) # Will use this method to create ghost vehicle
+            self.road.vehicles.append(ghost_vehicle)
 
             for _ in range(others):
                 vehicle = other_vehicles_type.create_random(
@@ -116,6 +119,8 @@ class MyEnv(HighwayEnv):
                 )
                 vehicle.randomize_behavior()
                 self.road.vehicles.append(vehicle)
+
+            
 
     def _reward(self, action):
         """Use default reward for now."""
