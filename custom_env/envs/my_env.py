@@ -15,6 +15,8 @@ highway_env.vehicle.behavior.SuddenBrakingVehicle = SuddenBrakingVehicle
 
 from custom_env.vehicle import GhostVehicle
 
+from custom_env.vehicle.Pothole import Pothole
+
 
 Observation = np.ndarray
 
@@ -59,6 +61,19 @@ class MyEnv(HighwayEnv):
                 "offroad_terminal": False,
                 "other_vehicles_type": "highway_env.vehicle.behavior.SuddenBrakingVehicle",
                 #"other_vehicles_type": "custom_env.vehicle.SuddenBrakingVehicle"
+                "potholes": {
+    "enabled": True,
+    "count": 8,
+    "placement_mode": "lane_edge_artifacts",  # "random" | "clusters" | "lane_edge_artifacts"
+    "spawn_ahead_min": 20.0,
+    "spawn_ahead_max": 160.0,
+
+    "radius_m": 1.2,
+    "decel_mps": 5.0,
+    "cooldown_steps": 10,
+    "apply_to": "ego",           # or "all"
+    "visible_in_lidar": True     # add to road.vehicles (Obstacle is a Vehicle subclass)
+}
 
             }
         )
@@ -116,7 +131,31 @@ class MyEnv(HighwayEnv):
                 )
                 vehicle.randomize_behavior()
                 self.road.vehicles.append(vehicle)
-
+            # Add Potholes randomly on the road
+            # Spawn potholes according to config (Pothole are Obstacle subclasses)
+        p_conf = self.config.get("potholes", {})
+        if p_conf.get("enabled", False):
+            count = int(p_conf.get("count", 0))
+            if count > 0 and len(self.controlled_vehicles) > 0:
+                ego = self.controlled_vehicles[0]
+                for _ in range(count):
+                    # Simple placement: pick a distance ahead of the ego and place in ego's heading
+                    dist = float(self.np_random.uniform(
+                        p_conf.get("spawn_ahead_min", 20.0),
+                        p_conf.get("spawn_ahead_max", 160.0),
+                    ))
+                    pos = ego.position + dist * np.array([np.cos(ego.heading), np.sin(ego.heading)])
+                    pothole = Pothole(
+                        self.road,
+                        pos,
+                        ego.heading,
+                        radius_m=p_conf.get("radius_m", 1.2),
+                        decel_mps=p_conf.get("decel_mps", 5.0),
+                        cooldown_steps=p_conf.get("cooldown_steps", 10),
+                        visible_in_lidar=p_conf.get("visible_in_lidar", True),
+                        apply_to=p_conf.get("apply_to", "ego"),
+                    )
+                    self.road.objects.append(pothole)
     def _reward(self, action):
         """Use default reward for now."""
         return super()._reward(action)
@@ -124,5 +163,16 @@ class MyEnv(HighwayEnv):
 
     def _is_terminal(self):
         """Use default termination condition."""
+        # check if ego vehicle has collided with pothole - if so, not terminal
+        # ego = self.controlled_vehicles[0]
+        # for v in self.road.vehicles:
+        #     if isinstance(v, Pothole):
+        #         #if ego.is_colliding(v):
+        #         return False        
         return super()._is_terminal() 
+    
+    
+    # def _is_terminal(self):
+    #     """Use default termination condition."""
+    #     return super()._is_terminal() 
             

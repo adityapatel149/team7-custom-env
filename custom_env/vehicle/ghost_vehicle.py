@@ -1,6 +1,9 @@
 from highway_env.vehicle.kinematics import Vehicle
 from highway_env.road.road import Road
 import numpy as np
+from highway_env.vehicle.objects import Obstacle, RoadObject
+import highway_env.utils as utils   
+from custom_env.vehicle.Pothole import Pothole 
 
 class GhostVehicle(Vehicle):
     """
@@ -58,6 +61,71 @@ class GhostVehicle(Vehicle):
     # def act(self, action = None):
     #     # disable any driving behavior
     #     pass
+
+
+    
+    def _is_colliding(self, other, dt):
+        # Fast spherical pre-check
+        if (
+            np.linalg.norm(other.position - self.position)
+            > (self.diagonal + other.diagonal) / 2 + self.speed * dt
+        ):
+            return (
+                False,
+                False,
+                np.zeros(
+                    2,
+                ),
+            )
+        # Accurate rectangular check
+        
+        results = utils.are_polygons_intersecting(
+            self.polygon(), other.polygon(), self.velocity * dt, other.velocity * dt
+        )
+        results = list(results)
+        results[-1] = np.zeros(2)    
+
+        return results
+    
+
+    
+    def handle_collisions(self, other: RoadObject, dt: float = 0) -> None:
+        """
+        Check for collision with another vehicle.
+
+        :param other: the other vehicle or object
+        :param dt: timestep to check for future collisions (at constant velocity)
+        """
+        if other is self or not (self.check_collisions or other.check_collisions):
+            return
+        if not (self.collidable and other.collidable):
+            return
+        intersecting, will_intersect, transition = self._is_colliding(other, dt)
+        
+        if isinstance(other, Pothole):
+            print("Ghost Vehicle collided with Pothole")
+            
+            if will_intersect:
+                if self.solid and other.solid:
+                    if isinstance(other, Obstacle):
+                        self.impact = None
+                    elif isinstance(self, Obstacle):
+                        other.impact = None
+                    else:
+                        # self.impact = transition / 2
+                        # other.impact = -transition / 2
+                        self.impact = None
+                        other.impact = None
+                        other.speed = 0.0
+            if intersecting:
+                if self.solid and other.solid:
+                    self.crashed = False
+                    other.crashed = False
+                if not self.solid:
+                    self.hit = False
+                if not other.solid:
+                    other.hit = False
+
 
 
 
